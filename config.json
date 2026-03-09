@@ -1,0 +1,26 @@
+{
+    "must_have_roles": [
+        "backend engineer",
+        "backend developer",
+        "server engineer",
+        "api engineer",
+        "backend dev"
+    ],
+    "nice_to_have_skills": [
+        "Python",
+        "FastAPI",
+        "PostgreSQL"
+    ],
+    "exclude_terms": [
+        "Staff",
+        "Principal",
+        "Director",
+        "Lead",
+        "Manager",
+        "no visa sponsorship"
+    ],
+    "date_range": "7days",
+    "max_queries_per_fetch": 5,
+    "pages_per_query": 1,
+    "llm_rerank_enabled": true
+}

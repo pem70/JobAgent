@@ -1,0 +1,18 @@
+{
+    "role_synonyms": {
+        "software engineer": ["swe", "sde", "software developer", "software dev"],
+        "backend engineer": ["backend developer", "server engineer", "api engineer", "backend dev"],
+        "fullstack engineer": ["full stack", "full-stack engineer", "fullstack developer", "full stack developer"],
+        "frontend engineer": ["frontend developer", "ui engineer", "ui developer", "front-end developer"]
+    },
+    "skill_synonyms": {
+        "javascript": ["js", "ecmascript"],
+        "typescript": ["ts"],
+        "react": ["react.js", "reactjs"],
+        "python": ["py", "python3"],
+        "postgresql": ["postgres", "psql"],
+        "kubernetes": ["k8s"],
+        "machine learning": ["ml"],
+        "artificial intelligence": ["ai"]
+    }
+}

@@ -1,0 +1,39 @@
+# Python cache/build
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local runtime artifacts
+agent.db
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Local secrets
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Generated model outputs
+data/learned_weights.json
