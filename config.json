@@ -1,23 +1,23 @@
 {
     "must_have_roles": [
-        "backend engineer",
-        "backend developer",
-        "server engineer",
-        "api engineer",
-        "backend dev"
+        "software engineer",
+        "swe",
+        "sde",
+        "software developer",
+        "software dev"
     ],
     "nice_to_have_skills": [
         "Python",
-        "FastAPI",
-        "PostgreSQL"
+        "Git",
+        "Java",
+        "Torch"
     ],
     "exclude_terms": [
         "Staff",
         "Principal",
         "Director",
         "Lead",
-        "Manager",
-        "no visa sponsorship"
+        "Manager"
     ],
     "date_range": "7days",
     "max_queries_per_fetch": 5,

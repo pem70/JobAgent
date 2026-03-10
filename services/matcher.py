@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from services.learner import apply_learned_weights, load_weights_or_empty, mark_ignored_jobs, update_weights
@@ -111,6 +112,8 @@ def layer3_llm_rerank(jobs: list[dict[str, Any]], profile: dict[str, Any], top_n
     )
 
     enriched_by_id: dict[int, dict[str, Any]] = {int(job["id"]): dict(job) for job in candidates}
+
+    batches: list[tuple[int, list[dict[str, Any]], str]] = []
     for batch_start in range(0, len(candidates), 10):
         batch = candidates[batch_start : batch_start + 10]
         lines: list[str] = []
@@ -122,21 +125,32 @@ def layer3_llm_rerank(jobs: list[dict[str, Any]], profile: dict[str, Any], top_n
                 f"parsed_skills={job.get('parsed_skills', '[]')}\n"
                 f"description={(job.get('description', '') or '')[:500]}\n"
             )
-        jobs_text = "\n".join(lines)
-        llm_items = call_kimi_rerank(profile_summary=profile_summary, jobs_text=jobs_text)
-        for llm_item in llm_items:
+        batches.append((batch_start, batch, "\n".join(lines)))
+
+    with ThreadPoolExecutor(max_workers=len(batches)) as executor:
+        future_to_batch = {
+            executor.submit(call_kimi_rerank, profile_summary=profile_summary, jobs_text=jobs_text): (batch_start, batch)
+            for batch_start, batch, jobs_text in batches
+        }
+        for future in as_completed(future_to_batch):
+            batch_start, batch = future_to_batch[future]
             try:
-                local_idx = int(llm_item.get("job_index"))
+                llm_items = future.result()
             except Exception:
                 continue
-            if local_idx < 0 or local_idx >= len(batch):
-                continue
-            job_id = int(batch[local_idx]["id"])
-            target = enriched_by_id[job_id]
-            target["llm_score"] = float(llm_item.get("score", 0))
-            target["rationale"] = str(llm_item.get("rationale", "") or "")
-            target["skill_gaps"] = llm_item.get("skill_gaps", []) or []
-            target["red_flags"] = llm_item.get("red_flags", []) or []
+            for llm_item in llm_items:
+                try:
+                    local_idx = int(llm_item.get("job_index"))
+                except Exception:
+                    continue
+                if local_idx < 0 or local_idx >= len(batch):
+                    continue
+                job_id = int(batch[local_idx]["id"])
+                target = enriched_by_id[job_id]
+                target["llm_score"] = float(llm_item.get("score", 0))
+                target["rationale"] = str(llm_item.get("rationale", "") or "")
+                target["skill_gaps"] = llm_item.get("skill_gaps", []) or []
+                target["red_flags"] = llm_item.get("red_flags", []) or []
 
     merged: list[dict[str, Any]] = []
     for job in jobs:

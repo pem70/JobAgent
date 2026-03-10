@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shlex
+import sys
 
 import typer
 from rich.console import Console
@@ -25,6 +27,39 @@ from services.tracker import (
 app = typer.Typer(name="agent", help="Job seeking agent CLI.")
 profile_app = typer.Typer(help="Profile management commands.")
 console = Console()
+
+
+def _interactive_loop() -> None:
+    console.print("[cyan]Interactive mode. Type commands like `profile show`. Type `exit` to quit.[/cyan]")
+    while True:
+        try:
+            line = input("> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            console.print()
+            break
+        if not line:
+            continue
+        if line.lower() in {"exit", "quit"}:
+            break
+        if line.lower() in {"help", "?"}:
+            try:
+                app(args=["--help"], prog_name="agent", standalone_mode=False)
+            except Exception:
+                pass
+            continue
+
+        try:
+            args = shlex.split(line, posix=False)
+        except ValueError as exc:
+            console.print(f"[red]Parse error:[/red] {exc}")
+            continue
+
+        try:
+            app(args=args, prog_name="agent", standalone_mode=False)
+        except SystemExit:
+            continue
+        except Exception as exc:
+            console.print(f"[red]Error:[/red] {exc}")
 
 
 @app.command("health")
@@ -454,4 +489,7 @@ def dismiss(job_id: int = typer.Argument(..., help="Job id to dismiss.")) -> Non
 
 
 if __name__ == "__main__":
-    app()
+    if len(sys.argv) > 1:
+        app()
+    else:
+        _interactive_loop()

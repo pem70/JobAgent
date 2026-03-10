@@ -5,12 +5,14 @@ import json
 import os
 import sqlite3
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import requests
 from rapidfuzz import fuzz
 
-from services.parser import extract_salary, extract_skills_from_text, extract_yoe, llm_extract_job_details
+from services.parser import extract_salary, extract_skills_from_text, extract_yoe
+from utils.llm import call_kimi_extract_batch
 
 JSEARCH_URL = "https://jsearch.p.rapidapi.com/search"
 REQUEST_TIMEOUT = (5, 25)  # (connect timeout, read timeout)
@@ -264,7 +266,7 @@ def ingest_jobs(
     config: dict[str, Any],
     synonyms: dict[str, Any],
     db_conn: sqlite3.Connection,
-    limit: int = 50,
+    limit: int = 20,
 ) -> tuple[int, int, int]:
     inserted = 0
     filtered_out = 0
@@ -297,38 +299,63 @@ def ingest_jobs(
             keyword_score, posted_at, status
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')
     """
+
+    # Batch LLM extraction for high-relevance jobs (5 per request, batches run in parallel)
+    llm_indices = [i for i, (_, ks) in enumerate(candidates) if float(ks) > 0.3]
+    llm_results: dict[int, dict[str, Any]] = {}
+    if llm_indices:
+        BATCH_SIZE = 5
+        index_batches = [llm_indices[s:s + BATCH_SIZE] for s in range(0, len(llm_indices), BATCH_SIZE)]
+
+        def _run_batch(idx_batch: list[int]) -> list[tuple[int, dict[str, Any]]]:
+            descs = [str(candidates[i][0].get("description", "") or "") for i in idx_batch]
+            items = call_kimi_extract_batch(descs)
+            out: list[tuple[int, dict[str, Any]]] = []
+            for item in items:
+                try:
+                    local = int(item.get("job_index") or -1)
+                except Exception:
+                    continue
+                if 0 <= local < len(idx_batch):
+                    out.append((idx_batch[local], item))
+            return out
+
+        with ThreadPoolExecutor(max_workers=min(4, len(index_batches))) as executor:
+            for pairs in executor.map(_run_batch, index_batches):
+                for orig_idx, data in pairs:
+                    llm_results[orig_idx] = data
+
     insert_rows: list[tuple[Any, ...]] = []
-    for job, keyword_score in candidates:
+    for i, (job, keyword_score) in enumerate(candidates):
         description = str(job.get("description", "") or "")
         parsed_skills = extract_skills_from_text(description, skill_synonyms)
         min_yoe = extract_yoe(description)
         visa_sponsorship = None
 
-        if float(keyword_score) > 0.3:
-            llm_data = llm_extract_job_details(description)
-            if isinstance(llm_data, dict) and llm_data:
-                llm_skills: list[str] = []
-                for key in ("required_skills", "preferred_skills", "tech_stack"):
-                    val = llm_data.get(key, [])
-                    if isinstance(val, list):
-                        llm_skills.extend(str(x).strip().lower() for x in val if str(x).strip())
-                if llm_skills:
-                    seen: set[str] = set()
-                    merged: list[str] = []
-                    for s in llm_skills + parsed_skills:
-                        if s not in seen:
-                            seen.add(s)
-                            merged.append(s)
-                    parsed_skills = merged
-                if llm_data.get("min_yoe") is not None:
-                    try:
-                        min_yoe = int(llm_data["min_yoe"])
-                    except Exception:
-                        pass
-                if llm_data.get("visa_sponsorship") is True:
-                    visa_sponsorship = 1
-                elif llm_data.get("visa_sponsorship") is False:
-                    visa_sponsorship = 0
+        llm_data = llm_results.get(i, {})
+        if isinstance(llm_data, dict) and llm_data:
+            llm_skills: list[str] = []
+            for key in ("required_skills", "preferred_skills", "tech_stack"):
+                val = llm_data.get(key, [])
+                if isinstance(val, list):
+                    llm_skills.extend(str(x).strip().lower() for x in val if str(x).strip())
+            if llm_skills:
+                seen: set[str] = set()
+                merged: list[str] = []
+                for s in llm_skills + parsed_skills:
+                    if s not in seen:
+                        seen.add(s)
+                        merged.append(s)
+                parsed_skills = merged
+            if llm_data.get("min_yoe") is not None:
+                try:
+                    min_yoe = int(llm_data["min_yoe"])
+                except Exception:
+                    pass
+            if llm_data.get("visa_sponsorship") is True:
+                visa_sponsorship = 1
+            elif llm_data.get("visa_sponsorship") is False:
+                visa_sponsorship = 0
 
         sal_low, sal_high = extract_salary(description)
         if job.get("salary_min") is None:
