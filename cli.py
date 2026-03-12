@@ -199,7 +199,7 @@ app.add_typer(profile_app, name="profile")
 
 @app.command("fetch")
 def fetch(
-    limit: int = typer.Option(50, "--limit", min=1, help="Max number of new jobs to ingest per run."),
+    limit: int = typer.Option(20, "--limit", min=1, help="Max number of new jobs to ingest per run."),
 ) -> None:
     """Fetch jobs from JSearch and store filtered results."""
     load_env()

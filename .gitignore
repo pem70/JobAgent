@@ -38,3 +38,4 @@ Thumbs.db
 # Generated model outputs
 data/learned_weights.json
 ARCHITECTURE.md
+config.json

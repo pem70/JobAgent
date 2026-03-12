@@ -1,16 +1,16 @@
 {
     "must_have_roles": [
-        "software engineer",
         "swe",
+        "software engineer",
         "sde",
         "software developer",
-        "software dev"
+        "software dev",
+        "ai engineer"
     ],
     "nice_to_have_skills": [
         "Python",
-        "Git",
         "Java",
-        "Torch"
+        "Azure"
     ],
     "exclude_terms": [
         "Staff",
@@ -19,7 +19,7 @@
         "Lead",
         "Manager"
     ],
-    "date_range": "7days",
+    "date_range": "3days",
     "max_queries_per_fetch": 5,
     "pages_per_query": 1,
     "llm_rerank_enabled": true

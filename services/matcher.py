@@ -136,7 +136,8 @@ def layer3_llm_rerank(jobs: list[dict[str, Any]], profile: dict[str, Any], top_n
             batch_start, batch = future_to_batch[future]
             try:
                 llm_items = future.result()
-            except Exception:
+            except Exception as exc:
+                print(f"[rerank] batch starting at {batch_start} failed: {exc}")
                 continue
             for llm_item in llm_items:
                 try:
@@ -240,9 +241,9 @@ def run_match_pipeline(
             enriched["mechanical_score"] = compute_mechanical_score(enriched, profile)
             mechanical_ranked.append(enriched)
         mechanical_ranked.sort(key=lambda x: float(x.get("mechanical_score", 0.0)), reverse=True)
-        top_mechanical = mechanical_ranked[:20]
+        top_mechanical = mechanical_ranked[:10]
 
-        scored = layer3_llm_rerank(top_mechanical, profile, top_n=20) if llm_enabled else top_mechanical
+        scored = layer3_llm_rerank(top_mechanical, profile, top_n=10) if llm_enabled else top_mechanical
         ranked = compute_final_scores(scored, llm_enabled=llm_enabled, learned_weights=learned_weights)
 
         _upsert_match_results(conn, ranked)
