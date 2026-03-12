@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import pickle
 import sqlite3
 from pathlib import Path
 from typing import Any, Optional
@@ -10,7 +9,6 @@ import pdfplumber
 
 from config import load_config, load_synonyms, save_config
 from db import get_connection
-from utils.embedding import get_embedding
 
 
 def _split_csv(raw: str | None) -> list[str]:
@@ -54,7 +52,6 @@ def _serialize_profile_for_db(profile: dict[str, Any]) -> dict[str, Any]:
         "id": 1,
         "name": profile.get("name"),
         "resume_text": profile.get("resume_text"),
-        "resume_embedding": pickle.dumps(profile.get("resume_embedding")),
         "skills": json.dumps(profile.get("skills", []), ensure_ascii=False),
         "target_roles": json.dumps(profile.get("target_roles", []), ensure_ascii=False),
         "yoe": int(profile.get("yoe", 0)),
@@ -72,7 +69,6 @@ def _deserialize_profile_row(row: sqlite3.Row | None) -> Optional[dict[str, Any]
         "id": row["id"],
         "name": row["name"],
         "resume_text": row["resume_text"] or "",
-        "resume_embedding": pickle.loads(row["resume_embedding"]) if row["resume_embedding"] else None,
         "skills": json.loads(row["skills"]) if row["skills"] else [],
         "target_roles": json.loads(row["target_roles"]) if row["target_roles"] else [],
         "yoe": row["yoe"] or 0,
@@ -104,17 +100,16 @@ def upsert_profile(profile: dict[str, Any], conn: sqlite3.Connection | None = No
         active_conn.execute(
             """
             INSERT INTO user_profile (
-                id, name, resume_text, resume_embedding, skills, target_roles, yoe,
+                id, name, resume_text, skills, target_roles, yoe,
                 location_pref, remote_ok, min_salary, deal_breakers
             )
             VALUES (
-                :id, :name, :resume_text, :resume_embedding, :skills, :target_roles, :yoe,
+                :id, :name, :resume_text, :skills, :target_roles, :yoe,
                 :location_pref, :remote_ok, :min_salary, :deal_breakers
             )
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 resume_text = excluded.resume_text,
-                resume_embedding = excluded.resume_embedding,
                 skills = excluded.skills,
                 target_roles = excluded.target_roles,
                 yoe = excluded.yoe,
@@ -202,12 +197,10 @@ def init_profile_from_resume(
     deal_breakers: list[str],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     resume_text = parse_resume_pdf(resume_path)
-    resume_embedding = get_embedding(resume_text)
     profile = {
         "id": 1,
         "name": name.strip(),
         "resume_text": resume_text,
-        "resume_embedding": resume_embedding,
         "skills": _unique_preserve_order(skills),
         "target_roles": _unique_preserve_order(target_roles),
         "yoe": int(yoe),
@@ -240,8 +233,7 @@ def update_profile_fields(
 
     if resume_path:
         updated["resume_text"] = parse_resume_pdf(resume_path)
-        updated["resume_embedding"] = get_embedding(updated["resume_text"])
-        changed_fields.update({"resume_text", "resume_embedding"})
+        changed_fields.add("resume_text")
 
     if skills is not None:
         updated["skills"] = _unique_preserve_order(_split_csv(skills))

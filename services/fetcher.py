@@ -182,7 +182,7 @@ def is_duplicate(job: dict[str, Any], db_conn: sqlite3.Connection) -> bool:
         """,
         (company, title),
     ).fetchall()
-    now = dt.datetime.utcnow()
+    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
     for row in rows:
         row_company = (row["company"] or "").lower()
         row_title = (row["title"] or "").lower()
@@ -295,9 +295,9 @@ def ingest_jobs(
     insert_sql = """
         INSERT INTO job_posting (
             source, external_id, title, company, location, remote, description, url,
-            salary_min, salary_max, parsed_skills, min_yoe, visa_sponsorship, embedding,
+            salary_min, salary_max, parsed_skills, min_yoe, visa_sponsorship,
             keyword_score, posted_at, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')
     """
 
     # Batch LLM extraction for high-relevance jobs (5 per request, batches run in parallel)
@@ -378,7 +378,6 @@ def ingest_jobs(
                 json.dumps(parsed_skills, ensure_ascii=False),
                 min_yoe,
                 visa_sponsorship,
-                None,
                 float(keyword_score),
                 job.get("posted_at"),
             )

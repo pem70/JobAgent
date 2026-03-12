@@ -2,13 +2,10 @@
 from __future__ import annotations
 
 import json
-import pickle
 import sqlite3
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-
-import numpy as np
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -34,16 +31,11 @@ def _make_db() -> sqlite3.Connection:
     return conn
 
 
-def _dummy_embedding() -> np.ndarray:
-    return np.zeros(1536, dtype=np.float32)
-
-
 def _base_profile(**kwargs) -> dict:
     base = {
         "id": 1,
         "name": "Alice",
         "resume_text": "Backend developer with Python experience.",
-        "resume_embedding": _dummy_embedding(),
         "skills": ["python", "fastapi"],
         "target_roles": ["software engineer"],
         "yoe": 3,
@@ -152,14 +144,6 @@ class TestSerializeProfileForDb(unittest.TestCase):
         parsed = json.loads(payload["skills"])
         self.assertIsInstance(parsed, list)
 
-    def test_embedding_serialized_as_bytes(self) -> None:
-        profile = _base_profile()
-        payload = _serialize_profile_for_db(profile)
-        self.assertIsInstance(payload["resume_embedding"], bytes)
-        # Verify it round-trips
-        recovered = pickle.loads(payload["resume_embedding"])
-        self.assertIsInstance(recovered, np.ndarray)
-
     def test_remote_ok_stored_as_int(self) -> None:
         profile_true = _base_profile(remote_ok=True)
         profile_false = _base_profile(remote_ok=False)
@@ -199,12 +183,6 @@ class TestGetProfileAndUpsert(unittest.TestCase):
         saved = upsert_profile(updated, conn=self.conn)
         self.assertEqual(saved["name"], "Bob")
         self.assertEqual(saved["yoe"], 5)
-
-    def test_resume_embedding_preserved_through_roundtrip(self) -> None:
-        profile = _base_profile()
-        saved = upsert_profile(profile, conn=self.conn)
-        self.assertIsNotNone(saved["resume_embedding"])
-        self.assertIsInstance(saved["resume_embedding"], np.ndarray)
 
     def test_deal_breakers_preserved(self) -> None:
         profile = _base_profile(deal_breakers=["relocation", "on-call"])
